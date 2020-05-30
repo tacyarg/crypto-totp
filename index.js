@@ -1,5 +1,5 @@
 const tf = require('./totp')()
-const qr = require('qrcode-terminal')
+const { prompt } = require('enquirer');
 
 const Runner = (onTick=x=>x, ticks=100) => {
   let counter = 0;
@@ -35,7 +35,16 @@ const uri = tf.generateTotpUri(secret)
 //const resTwo = Runner(x => two(secret))  
 //console.log(resOne, resTwo)
 
-console.log("TOTP URI:", uri)
-qr.generate(uri)
-console.log("Token:", tf.generateToken(secret))
-console.log('valid token?:', tf.validateToken(tf.generateToken(secret), secret))
+//console.log("TOTP URI:", uri)
+
+(async function startTester() {
+  
+  const response = await prompt({
+    type: 'input',
+    name: 'code',
+    message: 'What is your code?'
+  })
+
+  console.log('Valid:', tf.validateToken(secret, response.code))
+  startTester()
+})()
