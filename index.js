@@ -1,59 +1,82 @@
-const tf = require('./totp')()
-const { prompt } = require('enquirer');
-const qr = require('qrcode-terminal');
+const totp = require('notp').totp;
+const crypto = require('crypto')
+const base32 = require('hi-base32');
 
-const Runner = (onTick=x=>x, ticks=100) => {
-  let counter = 0;
-  let results = []
+module.exports = function () {
+  const clock = () => Math.floor(Date.now() / 30000);
 
-  while(counter < ticks){
-    counter++
-    const res = onTick()
-    if(res) results.push(res)
+  function generateSecret(length = 20) {
+    const randomBuffer = crypto.randomBytes(length);
+    return base32.encode(randomBuffer).replace(/=/g, '');
+  }
+  
+  function dynamicTruncationFn(hmacValue) {
+    const offset = hmacValue[hmacValue.length - 1] & 0xf;
+  
+    return (
+        ((hmacValue[offset] & 0x7f) << 24) |
+        ((hmacValue[offset + 1] & 0xff) << 16) |
+        ((hmacValue[offset + 2] & 0xff) << 8) |
+        (hmacValue[offset + 3] & 0xff)
+    );
   }
 
-  return results
-}
-
-function one() {
-  const secret = tf.generateSecret()
-  const token = tf.generateToken(secret)
-  const valid = tf.validateToken(token, secret)
+  // NOTE: generates 7 digit tokens.
+  function generateToken(secret, window=0) {
+    let counter = clock() + window
+    const decodedSecret = base32.decode.asBytes(secret);
+    const buffer = Buffer.alloc(8);
+    for (let i = 0; i < 8; i++) {
+        buffer[7 - i] = counter & 0xff;
+        counter = counter >> 8;
+    }
   
-  return {secret, token, valid}
-}
-
-function two(secret) {
-  const token = tf.generateToken(secret)
-  const valid = tf.validateToken(token, secret)
+    // Step 1: Generate an HMAC-SHA-1 value
+    const hmac = crypto.createHmac('SHA1', Buffer.from(decodedSecret));
+    hmac.update(buffer);
+    const hmacResult = hmac.digest();
   
-  return {secret, token, valid}
-}
-
-const secret = tf.generateSecret()
-const uri = tf.generateTotpUri(secret)
-//const resOne = Runner(one)
-//const resTwo = Runner(x => two(secret))  
-//console.log(resOne, resTwo)
-
-console.log("TOTP URI:", uri)
-qr.generate(uri, {small: true})
-
-async function startTester() {
+    // Step 2: Generate a 4-byte string (Dynamic Truncation)
+    const code = dynamicTruncationFn(hmacResult);
   
-  const response = await prompt({
-    type: 'input',
-    name: 'code',
-    message: 'Enter TOTP Code:'
-  })
+    // Step 3: Compute an HOTP value
+    return code % 10 ** 6;
+  }
 
-  return tf.validateToken(Number(response.code), secret)
+  //NOTE: window is the number of previous tokens to compare against. 
+  function validateToken(token, secret, window = 1) {
+    if (Math.abs(+window) > 10) {
+        console.error('Window size is too large');
+        return false;
+    }
+  
+    for (let errorWindow = -window; errorWindow <= +window; errorWindow++) {
+        const totp = generateToken(secret, errorWindow);
+        if (token === totp) {
+          return true;
+        }
+    }
+  
+    return false;
+  }
+  
+  function generateTotpUri(secret=generateSecret(), accountName, issuer="totp_test", algo="SHA1", digits=6, period=30) {
+    if(!accountName) accountName = secret
+    // Full OTPAUTH URI spec as explained at
+    // https://github.com/google/google-authenticator/wiki/Key-Uri-Format
+    return 'otpauth://totp/'
+      + encodeURI(issuer) + ':' + encodeURI(accountName)
+      + '?secret=' + secret.replace(/[\s\.\_\-]+/g, '').toUpperCase()
+      + '&issuer=' + encodeURIComponent(issuer)
+      + '&algorithm=' + algo
+      + '&digits=' + digits
+      + '&period=' + period
+  }
+
+  return {
+    generateSecret,
+    generateToken,
+    validateToken,
+    generateTotpUri 
+  }
 }
-
-
-(function run() {
-  return startTester()
-    .then(r => console.log('Valid:', r))
-    .catch(console.error)
-    .finally(run)
-})()
