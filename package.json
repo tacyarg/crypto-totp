@@ -1,5 +1,5 @@
 {
-  "name": "Native-TOTP",
+  "name": "crypto-totp",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
