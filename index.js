@@ -1,6 +1,7 @@
 const totp = require('notp').totp;
 const crypto = require('crypto')
 const base32 = require('hi-base32');
+const assert = require('assert')
 
 module.exports = function () {
   const clock = () => Math.floor(Date.now() / 30000);
@@ -11,6 +12,8 @@ module.exports = function () {
   }
   
   function dynamicTruncationFn(hmacValue) {
+    assert(hmacValue, 'hmacValue required')
+    
     const offset = hmacValue[hmacValue.length - 1] & 0xf;
   
     return (
@@ -23,6 +26,8 @@ module.exports = function () {
 
   // NOTE: generates 7 digit tokens.
   function generateToken(secret, window=0) {
+    assert(secret, 'secret required')
+    
     let counter = clock() + window
     const decodedSecret = base32.decode.asBytes(secret);
     const buffer = Buffer.alloc(8);
@@ -45,6 +50,9 @@ module.exports = function () {
 
   //NOTE: window is the number of previous tokens to compare against. 
   function validateToken(token, secret, window = 1) {
+    assert(token, 'token required')
+    assert(secret, 'secret required')
+
     if (Math.abs(+window) > 10) {
         console.error('Window size is too large');
         return false;
