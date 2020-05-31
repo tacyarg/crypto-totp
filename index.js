@@ -52,7 +52,7 @@ module.exports = function () {
   
     for (let errorWindow = -window; errorWindow <= +window; errorWindow++) {
         const totp = generateToken(secret, errorWindow);
-        if (token === totp) {
+        if (Number(token) === totp) {
           return true;
         }
     }

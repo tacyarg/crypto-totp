@@ -16,7 +16,7 @@ async function startTester() {
     message: 'Enter TOTP Code:'
   })
 
-  return tf.validateToken(Number(response.code), secret)
+  return tf.validateToken(response.code, secret)
 }
 
 
