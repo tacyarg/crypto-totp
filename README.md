@@ -1,5 +1,7 @@
 # Crypto-TOTP
 
+Very simple implementation of TOTP code validation for 2FA.
+
 ## Installation
 `yarn add crypto-totp`
 
